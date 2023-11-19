@@ -1,4 +1,5 @@
-from flask import Flask, request, render_template, redirect, url_for
+from flask import Flask, request, render_template, redirect, url_for, jsonify
+from flask_cors import CORS
 from werkzeug.utils import secure_filename
 from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing import image
@@ -7,6 +8,7 @@ import numpy as np
 import os
 
 app = Flask(__name__)
+CORS(app, resources={r"/*": {"origins": "*"}})
 
 # Load the saved model
 model_path = 'Tensorflow_Model'  # Update this path
@@ -33,11 +35,9 @@ def index():
 def upload_file():
     if 'file' not in request.files:
         return redirect(url_for('index'))
-
     file = request.files['file']
     if file.filename == '':
         return redirect(url_for('index'))
-
     if file:
         filename = secure_filename(file.filename)
         file_path = os.path.join('uploads', filename)
@@ -46,16 +46,20 @@ def upload_file():
         # Prepare and predict
         prepared_img = prepare_image(file_path)
         prediction = model.predict(prepared_img)
-        predicted_class = "Pneumonia" if prediction[0][0] > 0.5 else "Normal"
+        predicted_class = True if prediction[0][0] > 0.5 else False
         likelihood_score = prediction[0][0] * 100  # Convert to percentage
 
-        return f'''
-        <h1>Prediction: {predicted_class}</h1>
-        <h2> Likelihood Score: {likelihood_score:.2f}%</h2>
-        <a href="/">Upload another image</a>
-        '''
+        response = {
+            'status': 200,
+            'prediction': predicted_class,
+            'likelihoodScore': f"{likelihood_score:.2f}%"
+        }
+        return jsonify(response)
     else:
-        return redirect(url_for('index'))
+        return jsonify({
+            'status': 400,
+            'message': "Prediction went wrong. Please try again!"
+        })
 
 
 if __name__ == '__main__':
